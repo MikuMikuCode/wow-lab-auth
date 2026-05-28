@@ -269,6 +269,7 @@ def approve_session(session_id, telegram_user):
             """,
             (telegram_user.username or "", telegram_user.full_name or "", now.isoformat(), target_user_id),
         )
+        deactivate_duplicate_placeholders(db, target_user_id, telegram_user.username)
         add_audit(db, telegram_user.id, "auth_approved", target_user_id, user["username"])
 
     return True, "approved"
@@ -486,7 +487,7 @@ def list_users_by_role(role):
                        OR lower(a.username) = lower(u.username)
                 ) AS last_request_at
             FROM users u
-            WHERE u.role = ?
+            WHERE u.role = ? AND u.is_active = 1
             ORDER BY is_active DESC, username COLLATE NOCASE
             """,
             (role,),
@@ -562,6 +563,23 @@ def migrate_placeholder_user(db, old_telegram_id, telegram_user):
             telegram_user.full_name or "",
             old_telegram_id,
         ),
+    )
+
+
+def deactivate_duplicate_placeholders(db, telegram_id, username):
+    normalized = normalize_username(username)
+    if not normalized:
+        return
+
+    db.execute(
+        """
+        UPDATE users
+        SET is_active = 0, is_using = 0
+        WHERE telegram_id != ?
+          AND telegram_id < 0
+          AND lower(replace(username, '@', '')) = ?
+        """,
+        (telegram_id, normalized),
     )
 
 
