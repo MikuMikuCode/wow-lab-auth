@@ -2,7 +2,13 @@ import asyncio
 
 from aiogram import Bot, Dispatcher, F
 from aiogram.filters import Command, CommandStart
-from aiogram.types import KeyboardButton, Message, ReplyKeyboardMarkup
+from aiogram.types import (
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    KeyboardButton,
+    Message,
+    ReplyKeyboardMarkup,
+)
 
 from telegram_auth_bot.config import BOT_TOKEN
 from telegram_auth_bot.database import (
@@ -22,10 +28,23 @@ dp = Dispatcher()
 ADMIN_MENU = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="Пользователи"), KeyboardButton(text="Журнал аудита")],
-        [KeyboardButton(text="Добавить Юзера"), KeyboardButton(text="Добавить Админа")],
-        [KeyboardButton(text="Убрать пользователя")],
     ],
     resize_keyboard=True,
+)
+
+USERS_ACTIONS = InlineKeyboardMarkup(
+    inline_keyboard=[
+        [
+            InlineKeyboardButton(
+                text="Добавить юзера",
+                switch_inline_query_current_chat="/add_user ",
+            ),
+            InlineKeyboardButton(
+                text="Убрать юзера",
+                switch_inline_query_current_chat="/remove_user ",
+            ),
+        ],
+    ],
 )
 
 
@@ -92,36 +111,6 @@ async def users_button(message: Message):
 @dp.message(F.text == "Журнал аудита")
 async def audit_button(message: Message):
     await show_audit(message)
-
-
-@dp.message(F.text == "Добавить Юзера")
-async def add_user_button(message: Message):
-    await message.answer(
-        "Чтобы добавить Юзера, отправьте:\n"
-        "/add_user <telegram_id|@username> [@username] [имя]\n\n"
-        "Пример:\n/add_user @username Имя пользователя",
-        reply_markup=ADMIN_MENU,
-    )
-
-
-@dp.message(F.text == "Добавить Админа")
-async def add_admin_button(message: Message):
-    await message.answer(
-        "Чтобы добавить Админа, отправьте:\n"
-        "/add_admin <telegram_id|@username> [@username] [имя]\n\n"
-        "Пример:\n/add_admin 123456789 @username Имя админа",
-        reply_markup=ADMIN_MENU,
-    )
-
-
-@dp.message(F.text == "Убрать пользователя")
-async def remove_user_button(message: Message):
-    await message.answer(
-        "Чтобы убрать пользователя из белого списка, отправьте:\n"
-        "/remove_user <telegram_id|@username>\n\n"
-        "Пример:\n/remove_user @username",
-        reply_markup=ADMIN_MENU,
-    )
 
 
 async def add_person(message: Message, role: str):
@@ -193,7 +182,10 @@ async def show_users(message: Message):
 
     lines = ["Пользователи:"]
     lines.extend(format_user(row) for row in rows[:60])
-    await message.answer("\n".join(lines), reply_markup=ADMIN_MENU)
+    await message.answer(
+        "\n".join(lines),
+        reply_markup=USERS_ACTIONS,
+    )
 
 
 async def show_audit(message: Message):
@@ -215,7 +207,7 @@ async def fallback(message: Message):
     if is_admin(message.from_user.id):
         await message.answer(
             "Выберите действие в меню или используйте команды:\n"
-            "/add_user, /add_admin, /remove_user, /users, /audit",
+            "/add_user, /remove_user, /users, /audit",
             reply_markup=ADMIN_MENU,
         )
     else:

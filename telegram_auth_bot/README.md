@@ -86,10 +86,10 @@ Admins also see a Telegram reply menu with buttons:
 ```text
 Пользователи
 Журнал аудита
-Добавить Юзера
-Добавить Админа
-Убрать пользователя
 ```
+
+The user list message has inline buttons for adding or removing regular users.
+Admin creation is intentionally command-only.
 
 The desktop app must have these values in `config/app_config.json`:
 
