@@ -49,7 +49,7 @@ def init_db():
                 telegram_id INTEGER PRIMARY KEY,
                 username TEXT,
                 nickname TEXT,
-                role TEXT NOT NULL CHECK (role IN ('User', 'Admin')),
+                role TEXT NOT NULL CHECK (role IN ('User', 'Admin', 'Creator')),
                 is_active INTEGER NOT NULL DEFAULT 1,
                 last_authorized_at TEXT,
                 is_using INTEGER NOT NULL DEFAULT 0,
@@ -98,6 +98,8 @@ def init_db():
             """
         )
 
+        migrate_roles(db)
+
         if BOT_OWNER_ID:
             owner = db.execute(
                 "SELECT telegram_id FROM users WHERE telegram_id = ?",
@@ -108,11 +110,52 @@ def init_db():
                     """
                     INSERT INTO users (
                         telegram_id, username, nickname, role, is_active, added_by, added_at
-                    ) VALUES (?, ?, ?, 'Admin', 1, ?, ?)
+                    ) VALUES (?, ?, ?, 'Creator', 1, ?, ?)
                     """,
                     (BOT_OWNER_ID, "", "Owner", BOT_OWNER_ID, utc_iso()),
                 )
-                add_audit(db, BOT_OWNER_ID, "bootstrap_admin", BOT_OWNER_ID, "")
+                add_audit(db, BOT_OWNER_ID, "bootstrap_creator", BOT_OWNER_ID, "")
+            else:
+                db.execute(
+                    "UPDATE users SET role = 'Creator', is_active = 1 WHERE telegram_id = ?",
+                    (BOT_OWNER_ID,),
+                )
+
+
+def migrate_roles(db):
+    schema = db.execute("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'users'").fetchone()
+    if not schema or "Creator" in schema["sql"]:
+        return
+
+    db.execute("ALTER TABLE users RENAME TO users_old")
+    db.execute(
+        """
+        CREATE TABLE users (
+            telegram_id INTEGER PRIMARY KEY,
+            username TEXT,
+            nickname TEXT,
+            role TEXT NOT NULL CHECK (role IN ('User', 'Admin', 'Creator')),
+            is_active INTEGER NOT NULL DEFAULT 1,
+            last_authorized_at TEXT,
+            is_using INTEGER NOT NULL DEFAULT 0,
+            added_by INTEGER,
+            added_at TEXT NOT NULL
+        )
+        """
+    )
+    db.execute(
+        """
+        INSERT INTO users (
+            telegram_id, username, nickname, role, is_active,
+            last_authorized_at, is_using, added_by, added_at
+        )
+        SELECT
+            telegram_id, username, nickname, role, is_active,
+            last_authorized_at, is_using, added_by, added_at
+        FROM users_old
+        """
+    )
+    db.execute("DROP TABLE users_old")
 
 
 def create_session(device_id):
@@ -307,7 +350,12 @@ def find_active_user(telegram_id, username=None):
 
 def is_admin(telegram_id):
     user = find_active_user(telegram_id)
-    return bool(user and user["role"] == "Admin")
+    return bool(user and user["role"] in ("Admin", "Creator"))
+
+
+def is_creator(telegram_id):
+    user = find_active_user(telegram_id)
+    return bool(user and user["role"] == "Creator")
 
 
 def upsert_user(actor_id, telegram_id, username, nickname, role):
@@ -373,6 +421,27 @@ def deactivate_user(actor_id, target):
         return dict(row)
 
 
+def find_user_by_target(target):
+    with connect() as db:
+        if str(target).startswith("@"):
+            row = db.execute(
+                "SELECT * FROM users WHERE lower(replace(username, '@', '')) = ?",
+                (normalize_username(target),),
+            ).fetchone()
+        else:
+            try:
+                target_id = int(target)
+            except ValueError:
+                return None
+
+            row = db.execute(
+                "SELECT * FROM users WHERE telegram_id = ?",
+                (target_id,),
+            ).fetchone()
+
+        return dict(row) if row else None
+
+
 def list_users():
     with connect() as db:
         rows = db.execute(
@@ -394,6 +463,33 @@ def list_users():
             FROM users u
             ORDER BY role DESC, is_active DESC, username COLLATE NOCASE
             """
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+
+def list_users_by_role(role):
+    with connect() as db:
+        rows = db.execute(
+            """
+            SELECT
+                u.telegram_id,
+                u.username,
+                u.nickname,
+                u.role,
+                u.is_active,
+                u.last_authorized_at,
+                u.is_using,
+                (
+                    SELECT max(a.created_at)
+                    FROM access_attempts a
+                    WHERE a.telegram_id = u.telegram_id
+                       OR lower(a.username) = lower(u.username)
+                ) AS last_request_at
+            FROM users u
+            WHERE u.role = ?
+            ORDER BY is_active DESC, username COLLATE NOCASE
+            """,
+            (role,),
         ).fetchall()
         return [dict(row) for row in rows]
 

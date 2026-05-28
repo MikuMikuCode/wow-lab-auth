@@ -16,7 +16,7 @@ AUTH_SESSION_TTL_MINUTES=10
 AUTH_TOKEN_TTL_DAYS=30
 ```
 
-`TELEGRAM_BOT_OWNER_ID` is inserted as the first `Admin` on startup.
+`TELEGRAM_BOT_OWNER_ID` is inserted as the `Creator` on startup.
 
 ## Run
 
@@ -70,7 +70,15 @@ Use the Bothost URL as the app auth server:
 
 ## Bot commands
 
-Only `Admin` users can manage access:
+Roles:
+
+```text
+Creator: can authorize, manage users, manage admins, and view the audit log.
+Admin: can authorize, manage regular users, and view the audit log.
+User: can only authorize in the desktop app.
+```
+
+Command fallback is still available:
 
 ```text
 /add_user <telegram_id|@username> [@username] [nickname]
@@ -89,7 +97,8 @@ Admins also see a Telegram reply menu with buttons:
 ```
 
 The user list message has inline buttons for adding or removing regular users.
-Admin creation is intentionally command-only.
+The admin list message has inline buttons for adding or removing admins, visible
+only to the Creator.
 
 The desktop app must have these values in `config/app_config.json`:
 
