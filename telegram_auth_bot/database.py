@@ -244,6 +244,32 @@ def verify_token(token, device_id):
         return user_payload(row)
 
 
+def revoke_token(token, device_id):
+    with connect() as db:
+        row = db.execute(
+            """
+            SELECT telegram_id
+            FROM access_tokens
+            WHERE token = ? AND device_id = ? AND revoked_at IS NULL
+            """,
+            (token, device_id),
+        ).fetchone()
+        if not row:
+            return False
+
+        now = utc_iso()
+        db.execute(
+            "UPDATE access_tokens SET revoked_at = ? WHERE token = ? AND device_id = ?",
+            (now, token, device_id),
+        )
+        db.execute(
+            "UPDATE users SET is_using = 0 WHERE telegram_id = ?",
+            (row["telegram_id"],),
+        )
+        add_audit(db, row["telegram_id"], "logout", row["telegram_id"], "")
+        return True
+
+
 def find_active_user(telegram_id, username=None):
     with connect() as db:
         if telegram_id:

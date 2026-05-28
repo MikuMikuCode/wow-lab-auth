@@ -5,6 +5,7 @@ from telegram_auth_bot.database import (
     create_session,
     get_session,
     init_db,
+    revoke_token,
     verify_token,
 )
 
@@ -59,3 +60,9 @@ def verify(request: VerifyRequest):
         return {"ok": False, "error": "Access denied"}
 
     return {"ok": True, "user": user}
+
+
+@app.post("/api/auth/revoke")
+def revoke(request: VerifyRequest):
+    revoke_token(request.access_token, request.device_id)
+    return {"ok": True}
