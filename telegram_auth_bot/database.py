@@ -158,6 +158,16 @@ def get_session(session_id):
 def approve_session(session_id, telegram_user):
     session = get_session(session_id)
     if not session or session["status"] != "pending":
+        with connect() as db:
+            add_access_attempt(
+                db,
+                telegram_user.id,
+                telegram_user.username,
+                telegram_user.full_name,
+                session_id,
+                False,
+                "session_not_found_or_expired",
+            )
         return False, "session_not_found_or_expired"
 
     user = find_active_user(telegram_user.id, telegram_user.username)
@@ -367,8 +377,21 @@ def list_users():
     with connect() as db:
         rows = db.execute(
             """
-            SELECT telegram_id, username, nickname, role, is_active, last_authorized_at, is_using
-            FROM users
+            SELECT
+                u.telegram_id,
+                u.username,
+                u.nickname,
+                u.role,
+                u.is_active,
+                u.last_authorized_at,
+                u.is_using,
+                (
+                    SELECT max(a.created_at)
+                    FROM access_attempts a
+                    WHERE a.telegram_id = u.telegram_id
+                       OR lower(a.username) = lower(u.username)
+                ) AS last_request_at
+            FROM users u
             ORDER BY role DESC, is_active DESC, username COLLATE NOCASE
             """
         ).fetchall()

@@ -11,7 +11,7 @@ TELEGRAM_BOT_TOKEN=123456:telegram-token
 TELEGRAM_BOT_OWNER_ID=123456789
 PUBLIC_BASE_URL=https://bot-123.bothost.ru
 PORT=8000
-AUTH_DATABASE_PATH=/app/shared/auth_bot.sqlite3
+AUTH_DATABASE_PATH=/app/shared/auth_bot.db
 AUTH_SESSION_TTL_MINUTES=10
 AUTH_TOKEN_TTL_DAYS=30
 ```
@@ -79,6 +79,16 @@ Only `Admin` users can manage access:
 /users
 /audit
 /access_attempts
+```
+
+Admins also see a Telegram reply menu with buttons:
+
+```text
+Пользователи
+Журнал аудита
+Добавить Юзера
+Добавить Админа
+Убрать пользователя
 ```
 
 The desktop app must have these values in `config/app_config.json`:
