@@ -44,18 +44,28 @@ async def verify(request):
 
 
 async def health(_request):
-    return web.json_response({"ok": True})
+    return web.json_response(
+        {
+            "ok": True,
+            "public_base_url_configured": bool(PUBLIC_BASE_URL),
+            "webhook_url": f"{PUBLIC_BASE_URL}/telegram/webhook" if PUBLIC_BASE_URL else None,
+            "port": PORT,
+        }
+    )
 
 
 async def on_startup(bot: Bot):
     init_db()
     if not PUBLIC_BASE_URL:
-        raise RuntimeError("Set PUBLIC_BASE_URL to the HTTPS URL issued by Bothost")
+        print("WARNING: PUBLIC_BASE_URL is empty. HTTP API is running, Telegram webhook was not set.")
+        return
 
+    webhook_url = f"{PUBLIC_BASE_URL}/telegram/webhook"
     await bot.set_webhook(
-        f"{PUBLIC_BASE_URL}/telegram/webhook",
+        webhook_url,
         secret_token=TELEGRAM_WEBHOOK_SECRET or None,
     )
+    print(f"INFO: Telegram webhook set to {webhook_url}")
 
 
 async def on_shutdown(bot: Bot):
